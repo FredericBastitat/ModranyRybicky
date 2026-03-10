@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { VideoStream } from '@/components/VideoStream';
 import { MotorControls } from '@/components/MotorControls';
 
@@ -6,6 +9,38 @@ import { MotorControls } from '@/components/MotorControls';
  * Features a minimalist, premium dark design with a glassmorphism feel.
  */
 export default function Home() {
+  const [status, setStatus] = useState<{
+    online: boolean;
+    esp32Connected?: boolean;
+    viewers?: number;
+    fps?: number;
+  }>({ online: false, esp32Connected: false });
+
+  const [loading, setLoading] = useState(true);
+
+  // Poll for status every 5 seconds
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          setStatus(data);
+        }
+      } catch (err) {
+        setStatus({ online: false, esp32Connected: false });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isActuallyOnline = status.online && status.esp32Connected;
+
   return (
     <main className="min-h-screen bg-slate-950 font-sans text-slate-100">
       {/* Header section with branding */}
@@ -25,9 +60,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden h-3 w-3 animate-pulse rounded-full bg-green-500 shadow-md shadow-green-500/50 sm:block"></div>
-            <span className="hidden text-xs font-semibold uppercase tracking-widest text-slate-400 sm:block">
-              Connection Online
+            <div className={`hidden h-3 w-3 rounded-full shadow-md sm:block ${isActuallyOnline ? 'bg-green-500 shadow-green-500/50 animate-pulse' : 'bg-red-500 shadow-red-500/50'}`}></div>
+            <span className={`hidden text-[10px] font-black uppercase tracking-[0.2em] sm:block ${isActuallyOnline ? 'text-slate-400' : 'text-red-400'}`}>
+              {isActuallyOnline ? 'Connection Online' : 'System Offline'}
             </span>
           </div>
         </div>
@@ -45,15 +80,17 @@ export default function Home() {
           <div className="hidden grid-cols-3 gap-4 lg:grid">
             <div className="flex flex-col gap-1 rounded-xl bg-slate-900/50 p-4 text-center">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">FPS</span>
-              <span className="text-xl font-bold text-slate-200">25.4</span>
+              <span className="text-xl font-bold text-slate-200">{status.fps || 0}</span>
             </div>
             <div className="flex flex-col gap-1 rounded-xl bg-slate-900/50 p-4 text-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Latency</span>
-              <span className="text-xl font-bold text-slate-200">120ms</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Viewers</span>
+              <span className="text-xl font-bold text-slate-200">{status.viewers || 0}</span>
             </div>
             <div className="flex flex-col gap-1 rounded-xl bg-slate-900/50 p-4 text-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Resolution</span>
-              <span className="text-xl font-bold text-slate-200">VGA</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Status</span>
+              <span className={`text-xl font-bold capitalize ${isActuallyOnline ? 'text-green-400' : 'text-red-400'}`}>
+                {status.online ? (status.esp32Connected ? 'Ready' : 'Waiting CAM') : 'Offline'}
+              </span>
             </div>
           </div>
         </div>

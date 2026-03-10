@@ -16,9 +16,9 @@ export function VideoStream() {
             {/* MJPEG Stream directly from the relay */}
             <img
                 src={streamUrl}
-                alt="ESP32-CAM Stream"
-                className="h-full w-full object-contain"
-                onError={() => setError('Nepodařilo se připojit k video streamu. Je relay server spuštěn?')}
+                alt="ESP32-CAM Video Stream"
+                className={`h-full w-full object-contain transition-opacity duration-300 ${error ? 'opacity-20' : 'opacity-100'}`}
+                onError={() => setError('Nepodařilo se připojit k video streamu. Zkontrolujte připojení k Oracle VM.')}
                 onLoad={() => setError(null)}
             />
 
@@ -41,8 +41,8 @@ export function VideoStream() {
             )}
 
             {/* Info Badge */}
-            <div className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-green-400 backdrop-blur-md">
-                Live
+            <div className={`absolute left-4 top-4 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${error ? 'bg-red-600/20 text-red-500 border-red-500/30' : 'bg-black/50 text-green-400 border-green-500/20'}`}>
+                {error ? 'Connect Fail' : 'Live'}
             </div>
         </div>
     );
