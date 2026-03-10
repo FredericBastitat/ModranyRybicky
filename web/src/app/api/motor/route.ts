@@ -15,11 +15,17 @@ export async function POST(req: Request) {
 
         const relayUrl = process.env.ORACLE_RELAY_URL || 'http://localhost:8080';
 
-        const response = await fetch(`${relayUrl}/motor`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dir }),
-        });
+        let response;
+        try {
+            response = await fetch(`${relayUrl}/motor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dir }),
+            });
+        } catch (fetchErr) {
+            console.error('Relay server unreachable:', fetchErr);
+            return NextResponse.json({ error: 'Relay server is offline' }, { status: 503 });
+        }
 
         if (!response.ok) {
             const errorData = await response.json();
