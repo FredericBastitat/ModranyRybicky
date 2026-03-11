@@ -14,13 +14,18 @@ export function VideoStream() {
         viewers: number;
     } | null>(null);
 
-    const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8080/stream';
-    const streamToken = process.env.NEXT_PUBLIC_STREAM_TOKEN || '';
+    const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'https://rybicky-cloud.fly.dev/stream';
+    const streamToken = process.env.NEXT_PUBLIC_STREAM_TOKEN || 'zmen-me-prosim';
 
     // Status URL is based on the relay host. 
     // We use a separate env var if available to avoid string manipulation issues.
     const relayBaseUrl = process.env.NEXT_PUBLIC_RELAY_URL || baseStreamUrl.replace('/stream', '');
     const statusUrl = `${relayBaseUrl}/status`;
+
+    // Debug log to help identify why env vars are missing
+    useEffect(() => {
+        console.log('VideoStream Config:', { baseStreamUrl, statusUrl, hasToken: !!streamToken });
+    }, [baseStreamUrl, statusUrl, streamToken]);
 
     // Add token if exists and not already in URL
     const streamUrl = streamToken && !baseStreamUrl.includes('token=')

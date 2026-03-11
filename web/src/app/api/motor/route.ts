@@ -13,8 +13,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing direction' }, { status: 400 });
         }
 
-        const relayUrl = process.env.ORACLE_RELAY_URL || 'http://localhost:8080';
-        const relayToken = process.env.RELAY_AUTH_TOKEN || '';
+        const relayUrl = process.env.ORACLE_RELAY_URL || 'https://rybicky-cloud.fly.dev';
+        const relayToken = process.env.RELAY_AUTH_TOKEN || 'zmen-me-prosim';
 
         let response;
         try {
