@@ -26,8 +26,8 @@
 // ═══════════════════════════════════════════════════════════════
 const char* WIFI_SSID  = "VASE_WIFI_SSID";
 const char* WIFI_PASS  = "VASE_WIFI_HESLO";
-const char* RELAY_HOST = "ORACLE_VM_IP";   // např. "123.456.789.0"
-const int   RELAY_PORT = 8080;
+const char* RELAY_HOST = "rybicky-cloud.fly.dev";
+const int   RELAY_PORT = 80;
 
 // ═══════════════════════════════════════════════════════════════
 //  PINY KAMERY – AI Thinker ESP32-CAM pinout

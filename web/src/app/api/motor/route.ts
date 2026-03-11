@@ -14,12 +14,16 @@ export async function POST(req: Request) {
         }
 
         const relayUrl = process.env.ORACLE_RELAY_URL || 'http://localhost:8080';
+        const relayToken = process.env.RELAY_AUTH_TOKEN || '';
 
         let response;
         try {
             response = await fetch(`${relayUrl}/motor`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': relayToken
+                },
                 body: JSON.stringify({ dir }),
             });
         } catch (fetchErr) {

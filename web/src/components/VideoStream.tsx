@@ -9,7 +9,13 @@ import { useState, useEffect } from 'react';
  */
 export function VideoStream() {
     const [error, setError] = useState<string | null>(null);
-    const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8080/stream';
+    const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8080/stream';
+    const streamToken = process.env.NEXT_PUBLIC_STREAM_TOKEN || '';
+
+    // Add token if exists and not already in URL
+    const streamUrl = streamToken && !baseStreamUrl.includes('token=')
+        ? `${baseStreamUrl}${baseStreamUrl.includes('?') ? '&' : '?'}token=${streamToken}`
+        : baseStreamUrl;
 
     return (
         <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-900 shadow-2xl transition-all duration-300 hover:shadow-indigo-500/10">
