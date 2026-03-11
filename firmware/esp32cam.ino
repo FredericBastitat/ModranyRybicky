@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────
  * Funkce:
  *  - Připojení na WiFi
- *  - WebSocket klient → Oracle VM relay server
+ *  - WebSocket klient → Fly.io relay server
  *  - Proudový JPEG stream (binary WebSocket frames)
  *  - Příjem motor příkazů přes WebSocket (JSON text)
  *  - Ovládání motoru přes L298N / L9110S driver

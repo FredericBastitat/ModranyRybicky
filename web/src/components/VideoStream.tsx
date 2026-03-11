@@ -3,52 +3,116 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Component to display the MJPEG stream from the Oracle VM.
- * Direct connection between browser and relay server is used for low latency
- * and to avoid Vercel's timeout limits.
+ * Component to display the MJPEG stream from the Fly.io relay server.
+ * Includes status monitoring to show connectivity of both the relay and ESP32.
  */
 export function VideoStream() {
     const [error, setError] = useState<string | null>(null);
+    const [relayStatus, setRelayStatus] = useState<{
+        esp32_connected: boolean;
+        frames_received: number;
+        viewers: number;
+    } | null>(null);
+
     const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8080/stream';
     const streamToken = process.env.NEXT_PUBLIC_STREAM_TOKEN || '';
+
+    // Status URL is on the same host as the stream
+    const statusUrl = baseStreamUrl.replace('/stream', '/status');
 
     // Add token if exists and not already in URL
     const streamUrl = streamToken && !baseStreamUrl.includes('token=')
         ? `${baseStreamUrl}${baseStreamUrl.includes('?') ? '&' : '?'}token=${streamToken}`
         : baseStreamUrl;
 
+    // Poll status from the relay server
+    useEffect(() => {
+        const fetchStatus = async () => {
+            try {
+                const res = await fetch(statusUrl);
+                if (res.ok) {
+                    const data = await res.json();
+                    setRelayStatus(data);
+                    if (data.esp32_connected) setError(null);
+                }
+            } catch (err) {
+                console.error('Failed to fetch relay status:', err);
+            }
+        };
+
+        const interval = setInterval(fetchStatus, 3000);
+        fetchStatus();
+        return () => clearInterval(interval);
+    }, [statusUrl]);
+
     return (
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-900 shadow-2xl transition-all duration-300 hover:shadow-indigo-500/10">
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950 shadow-2xl transition-all duration-300 hover:shadow-indigo-500/10 border border-slate-800">
             {/* MJPEG Stream directly from the relay */}
             <img
                 src={streamUrl}
                 alt="ESP32-CAM Video Stream"
-                className={`h-full w-full object-contain transition-opacity duration-300 ${error ? 'opacity-20' : 'opacity-100'}`}
-                onError={() => setError('Nepodařilo se připojit k video streamu. Zkontrolujte připojení k Oracle VM.')}
+                className={`h-full w-full object-contain transition-opacity duration-700 ${(!relayStatus?.esp32_connected || error) ? 'opacity-20 grayscale' : 'opacity-100'}`}
+                onError={() => setError('Nepodařilo se připojit k Fly.io serveru.')}
                 onLoad={() => setError(null)}
             />
 
+            {/* Loading / Status Overlay */}
+            {(!relayStatus?.esp32_connected && !error) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white bg-slate-950/40 backdrop-blur-sm">
+                    <div className="mb-4 animate-pulse text-4xl">🐠</div>
+                    <h3 className="text-xl font-medium text-slate-200">Čekám na signál z rybiček</h3>
+                    <p className="max-w-md mt-2 text-slate-400 text-sm">
+                        Relay server běží, ale ESP32-CAM v akváriu není připojena.
+                    </p>
+                </div>
+            )}
+
             {/* Error Overlay */}
             {error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white bg-red-950/20 backdrop-blur-md">
                     <div className="mb-4 text-4xl">🔌</div>
-                    <p className="max-w-md text-slate-300">{error}</p>
+                    <p className="max-w-md text-red-200 font-medium">{error}</p>
                     <button
-                        onClick={() => {
-                            setError(null);
-                            // Force refreshing the image source can be done by appending a timestamp
-                            // but for MJPEG it might be better to just let the image reload
-                        }}
-                        className="mt-4 rounded-full bg-indigo-600 px-6 py-2 transition hover:bg-indigo-500 active:scale-95"
+                        onClick={() => window.location.reload()}
+                        className="mt-4 rounded-full bg-red-600 px-6 py-2 text-sm transition hover:bg-red-500 active:scale-95 shadow-lg shadow-red-900/20"
                     >
-                        Zkusit znovu
+                        Restartovat aplikaci
                     </button>
                 </div>
             )}
 
-            {/* Info Badge */}
-            <div className={`absolute left-4 top-4 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${error ? 'bg-red-600/20 text-red-500 border-red-500/30' : 'bg-black/50 text-green-400 border-green-500/20'}`}>
-                {error ? 'Connect Fail' : 'Live'}
+            {/* Badges UI */}
+            <div className="absolute left-4 top-4 flex flex-col gap-2">
+                {/* Live Badge */}
+                <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${relayStatus?.esp32_connected ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-800/50 text-slate-500 border-slate-700/50'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${relayStatus?.esp32_connected ? 'bg-green-400 animate-ping' : 'bg-slate-600'}`}></span>
+                    {relayStatus?.esp32_connected ? 'Live Stream' : 'Offline'}
+                </div>
+
+                {/* Technical Stats Badge */}
+                {relayStatus && (
+                    <div className="rounded-lg bg-black/40 p-2 text-[9px] font-mono text-slate-400 backdrop-blur-md border border-white/5 space-y-0.5">
+                        <div className="flex justify-between gap-3">
+                            <span>FLY.IO CLOUD:</span>
+                            <span className="text-blue-400 font-bold text-center">ONLINE</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                            <span>HARDWARE:</span>
+                            <span className={relayStatus.esp32_connected ? 'text-green-400' : 'text-red-400'}>
+                                {relayStatus.esp32_connected ? 'CONNECTED' : 'DISCONNECTED'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                            <span>TRANSFERRED:</span>
+                            <span className="text-slate-300">{(relayStatus.frames_received).toLocaleString()} frames</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Corner Logo */}
+            <div className="absolute right-4 bottom-4 opacity-30 select-none pointer-events-none">
+                <span className="text-xs font-bold tracking-tighter text-white italic">MODRANY RYBICKY</span>
             </div>
         </div>
     );

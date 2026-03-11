@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 /**
- * API route to proxy motor commands to the Oracle VM relay server.
+ * API route to proxy motor commands to the Fly.io relay server.
  * This route is called from the browser and sends a POST request to the relay server.
  */
 export async function POST(req: Request) {

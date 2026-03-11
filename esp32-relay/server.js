@@ -112,13 +112,30 @@ app.get("/", (req, res) => {
             <span class="value">${stats.framesReceived}</span>
           </div>
           
-          <div style="margin-top: 2rem; padding: 1rem; background: #0f172a; border-radius: 0.5rem; border: 1px dashed #334155;">
-            <p style="margin-top:0; font-size: 0.9rem; color: #94a3b8;">Pro test streamu přidejte token do URL:</p>
-            <code>?token=VASE_HESLO</code>
+          <div style="margin-top: 2rem; padding: 1.5rem; background: #0f172a; border-radius: 0.5rem; border: 1px solid #334155;">
+            <p style="margin-top:0; font-size: 0.9rem; color: #94a3b8;">Zadejte přístupový token (heslo):</p>
+            <input type="password" id="token-input" style="width:100%; padding:0.5rem; background:#1e293b; color:white; border:1px solid #334155; border-radius:4px; margin-bottom:1rem;" placeholder="Vložte token...">
+            <a href="/stream" id="stream-link" class="btn" style="margin-top:0; width:100%; box-sizing:border-box; text-align:center;">Otevřít Video Stream</a>
           </div>
-
-          <a href="/stream" id="stream-link" class="btn">Otevřít Video Stream</a>
         </div>
+        <script>
+          const input = document.getElementById('token-input');
+          const link = document.getElementById('stream-link');
+          
+          // Načtení z URL nebo localStorage
+          const urlParams = new URLSearchParams(window.location.search);
+          let token = urlParams.get('token') || localStorage.getItem('relay_token');
+          
+          if (token) {
+            input.value = token;
+            link.href = '/stream?token=' + token;
+          }
+
+          input.oninput = () => {
+            localStorage.setItem('relay_token', input.value);
+            link.href = '/stream?token=' + input.value;
+          };
+        </script>
       </body>
     </html>
   `);
@@ -130,10 +147,13 @@ app.get("/", (req, res) => {
  */
 app.get("/stream", (req, res) => {
   // 1. Kontrola Tokenu (přijímáme ?token= nebo ?key=)
-  const receivedToken = req.query.token || req.query.key;
+  const receivedToken = (req.query.token || req.query.key || "").trim();
+  const expectedToken = (AUTH_TOKEN || "").trim();
 
-  if (receivedToken !== AUTH_TOKEN) {
-    console.warn(`[Stream] 403 Access Denied: Received "${receivedToken}", expected ${AUTH_TOKEN ? '***hidden***' : 'NOTHING (AUTH_TOKEN is empty!)'}`);
+  if (receivedToken !== expectedToken) {
+    console.warn(`[Stream] 403 Forbidden!
+      - Received: "${receivedToken.substring(0, 2)}..." (len: ${receivedToken.length})
+      - Expected: "${expectedToken.substring(0, 2)}..." (len: ${expectedToken.length})`);
     return res.status(403).send("Unauthorized: Invalid or missing token.");
   }
 
@@ -248,6 +268,9 @@ wss.on("connection", (socket, request) => {
         lastFrame = data;
         lastFrameTime = now;
         stats.framesReceived++;
+        if (stats.framesReceived % 100 === 0) {
+          console.log(`[WS] Přijato ${stats.framesReceived} snímků (poslední velikost: ${data.length} bytes)`);
+        }
         broadcastFrame(data);
       }
     }
