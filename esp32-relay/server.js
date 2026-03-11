@@ -63,14 +63,65 @@ app.use((req, res, next) => {
 // --- HTTP ENDPOINTY ---
 
 app.get("/", (req, res) => {
-  res.json({
-    status: "ESP32 Relay Active",
-    bandwidth_used_gb: getBytesInGB(stats.bytesSent),
-    bandwidth_limit_gb: BANDWIDTH_LIMIT_GB,
-    esp32_connected: !!esp32Socket,
-    viewers: mjpegClients.size,
-    uptime_seconds: Math.floor((Date.now() - stats.startTime) / 1000)
-  });
+  res.send(`
+    <html>
+      <head>
+        <title>ESP32 Relay Dashboard</title>
+        <style>
+          body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; padding: 2rem; line-height: 1.5; }
+          .container { max-width: 600px; margin: 0 auto; background: #1e293b; padding: 2rem; rounded: 1rem; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border-radius: 12px; }
+          h1 { color: #38bdf8; margin-top: 0; }
+          .stat { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155; }
+          .stat:last-child { border-bottom: none; }
+          .label { color: #94a3b8; }
+          .value { font-weight: bold; }
+          .online { color: #4ade80; }
+          .offline { color: #f87171; }
+          .btn { display: inline-block; background: #38bdf8; color: #0f172a; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: bold; margin-top: 1.5rem; transition: transform 0.2s; }
+          .btn:hover { transform: translateY(-2px); background: #7dd3fc; }
+          code { background: #0f172a; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        </style>
+        <script>
+          // Skript pro automatický append tokenu z URL do odkazu, pokud jej uživatel zadá
+          window.onload = () => {
+             const urlParams = new URLSearchParams(window.location.search);
+             const token = urlParams.get('token');
+             if (token) {
+               document.getElementById('stream-link').href = '/stream?token=' + token;
+             }
+          };
+        </script>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🐟 ESP32 Relay Server</h1>
+          <div class="stat">
+            <span class="label">Hardware Status:</span>
+            <span class="value ${esp32Socket ? 'online' : 'offline'}">${esp32Socket ? '🟢 Connected' : '🔴 Disconnected'}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Bandwidth Used:</span>
+            <span class="value">${getBytesInGB(stats.bytesSent)} / ${BANDWIDTH_LIMIT_GB} GB</span>
+          </div>
+          <div class="stat">
+            <span class="label">Live Viewers:</span>
+            <span class="value">${mjpegClients.size} / ${MAX_VIEWERS}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Frames Received:</span>
+            <span class="value">${stats.framesReceived}</span>
+          </div>
+          
+          <div style="margin-top: 2rem; padding: 1rem; background: #0f172a; border-radius: 0.5rem; border: 1px dashed #334155;">
+            <p style="margin-top:0; font-size: 0.9rem; color: #94a3b8;">Pro test streamu přidejte token do URL:</p>
+            <code>?token=VASE_HESLO</code>
+          </div>
+
+          <a href="/stream" id="stream-link" class="btn">Otevřít Video Stream</a>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 /**
@@ -78,8 +129,11 @@ app.get("/", (req, res) => {
  * Use: /stream?token=vaše_heslo
  */
 app.get("/stream", (req, res) => {
-  // 1. Kontrola Tokenu
-  if (req.query.token !== AUTH_TOKEN) {
+  // 1. Kontrola Tokenu (přijímáme ?token= nebo ?key=)
+  const receivedToken = req.query.token || req.query.key;
+
+  if (receivedToken !== AUTH_TOKEN) {
+    console.warn(`[Stream] 403 Access Denied: Received "${receivedToken}", expected ${AUTH_TOKEN ? '***hidden***' : 'NOTHING (AUTH_TOKEN is empty!)'}`);
     return res.status(403).send("Unauthorized: Invalid or missing token.");
   }
 
