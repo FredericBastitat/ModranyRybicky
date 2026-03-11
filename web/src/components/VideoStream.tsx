@@ -17,8 +17,10 @@ export function VideoStream() {
     const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:8080/stream';
     const streamToken = process.env.NEXT_PUBLIC_STREAM_TOKEN || '';
 
-    // Status URL is on the same host as the stream
-    const statusUrl = baseStreamUrl.replace('/stream', '/status');
+    // Status URL is based on the relay host. 
+    // We use a separate env var if available to avoid string manipulation issues.
+    const relayBaseUrl = process.env.NEXT_PUBLIC_RELAY_URL || baseStreamUrl.replace('/stream', '');
+    const statusUrl = `${relayBaseUrl}/status`;
 
     // Add token if exists and not already in URL
     const streamUrl = streamToken && !baseStreamUrl.includes('token=')

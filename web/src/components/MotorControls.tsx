@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 /**
  * Component for controlling the ESP32-CAM motors.
- * Sends POST requests to the Vercel API which proxies them to the Fly.io relay server.
+ * Sends POST requests to the Vercel API which proxies them to the Oracle VM.
  */
 export function MotorControls() {
     const [activeDir, setActiveDir] = useState<string | null>(null);
