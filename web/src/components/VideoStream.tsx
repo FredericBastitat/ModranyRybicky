@@ -9,9 +9,9 @@ import { useState, useEffect } from 'react';
 export function VideoStream() {
     const [error, setError] = useState<string | null>(null);
     const [relayStatus, setRelayStatus] = useState<{
-        esp32_connected: boolean;
-        frames_received: number;
-        viewers: number;
+        esp32Connected: boolean;
+        framesReceived: number;
+        mjpegViewers: number;
     } | null>(null);
 
     const baseStreamUrl = process.env.NEXT_PUBLIC_STREAM_URL || 'https://rybicky-cloud.fly.dev/stream';
@@ -40,7 +40,7 @@ export function VideoStream() {
                 if (res.ok) {
                     const data = await res.json();
                     setRelayStatus(data);
-                    if (data.esp32_connected) setError(null);
+                    if (data.esp32Connected) setError(null);
                 }
             } catch (err) {
                 console.error('Failed to fetch relay status:', err);
@@ -58,13 +58,13 @@ export function VideoStream() {
             <img
                 src={streamUrl}
                 alt="ESP32-CAM Video Stream"
-                className={`h-full w-full object-contain transition-opacity duration-700 ${(!relayStatus?.esp32_connected || error) ? 'opacity-20 grayscale' : 'opacity-100'}`}
+                className={`h-full w-full object-contain transition-opacity duration-700 ${(!relayStatus?.esp32Connected || error) ? 'opacity-20 grayscale' : 'opacity-100'}`}
                 onError={() => setError('Nepodařilo se připojit k Fly.io serveru.')}
                 onLoad={() => setError(null)}
             />
 
             {/* Loading / Status Overlay */}
-            {(!relayStatus?.esp32_connected && !error) && (
+            {(!relayStatus?.esp32Connected && !error) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white bg-slate-950/40 backdrop-blur-sm">
                     <div className="mb-4 animate-pulse text-4xl">🐠</div>
                     <h3 className="text-xl font-medium text-slate-200">Čekám na signál z rybiček</h3>
@@ -91,9 +91,9 @@ export function VideoStream() {
             {/* Badges UI */}
             <div className="absolute left-4 top-4 flex flex-col gap-2">
                 {/* Live Badge */}
-                <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${relayStatus?.esp32_connected ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-800/50 text-slate-500 border-slate-700/50'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${relayStatus?.esp32_connected ? 'bg-green-400 animate-ping' : 'bg-slate-600'}`}></span>
-                    {relayStatus?.esp32_connected ? 'Live Stream' : 'Offline'}
+                <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border ${relayStatus?.esp32Connected ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-800/50 text-slate-500 border-slate-700/50'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${relayStatus?.esp32Connected ? 'bg-green-400 animate-ping' : 'bg-slate-600'}`}></span>
+                    {relayStatus?.esp32Connected ? 'Live Stream' : 'Offline'}
                 </div>
 
                 {/* Technical Stats Badge */}
@@ -105,13 +105,13 @@ export function VideoStream() {
                         </div>
                         <div className="flex justify-between gap-3">
                             <span>HARDWARE:</span>
-                            <span className={relayStatus.esp32_connected ? 'text-green-400' : 'text-red-400'}>
-                                {relayStatus.esp32_connected ? 'CONNECTED' : 'DISCONNECTED'}
+                            <span className={relayStatus.esp32Connected ? 'text-green-400' : 'text-red-400'}>
+                                {relayStatus.esp32Connected ? 'CONNECTED' : 'DISCONNECTED'}
                             </span>
                         </div>
                         <div className="flex justify-between gap-3">
                             <span>TRANSFERRED:</span>
-                            <span className="text-slate-300">{(relayStatus.frames_received).toLocaleString()} frames</span>
+                            <span className="text-slate-300">{(relayStatus.framesReceived).toLocaleString()} frames</span>
                         </div>
                     </div>
                 )}

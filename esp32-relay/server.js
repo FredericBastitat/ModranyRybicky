@@ -33,19 +33,69 @@ let mjpegClients = new Set();
 
 const stats = {
   esp32Connected: false,
-  bytesSent: 0, // Cumulative bytes sent in current process lifespan
+  flyApiBandwidth: 0,     // Reálná data z Fly.io API (jediný zdroj pravdy)
   viewersCount: 0,
   startTime: Date.now(),
   framesReceived: 0,
+  lastSync: null
 };
 
 // Pomocná funkce pro převod na GB
 const getBytesInGB = (bytes) => (bytes / (1024 * 1024 * 1024)).toFixed(4);
 
-// Kontrola limitu
+/**
+ * DOTAZ NA FLY.IO API (GraphQL)
+ */
+async function syncFlyUsage() {
+  const FLY_TOKEN = process.env.FLY_API_TOKEN;
+  const APP_NAME = process.env.FLY_APP_NAME || 'rybicky-cloud';
+
+  if (!FLY_TOKEN) {
+    console.warn("[FlyAPI] Chybí FLY_API_TOKEN. Limit nebude fungovat správně!");
+    return;
+  }
+
+  const query = `
+    query($appName: String!) {
+      app(name: $appName) {
+        usage {
+          egress {
+            amount
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch('https://api.fly.io/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${FLY_TOKEN}`,
+      },
+      body: JSON.stringify({ query, variables: { appName: APP_NAME } }),
+    });
+
+    const body = await response.json();
+    if (body.data && body.data.app && body.data.app.usage) {
+      const totalBytes = body.data.app.usage.egress.amount;
+      stats.flyApiBandwidth = totalBytes;
+      stats.lastSync = new Date().toISOString();
+      console.log(`[FlyAPI] Synchronizováno: ${getBytesInGB(totalBytes)} GB vyčerpáno tento měsíc.`);
+    }
+  } catch (err) {
+    console.error("[FlyAPI] Chyba synchronizace:", err.message);
+  }
+}
+
+// Častější synchronizace (každých 5 minut) pro lepší bezpečnost
+setInterval(syncFlyUsage, 5 * 60 * 1000);
+setTimeout(syncFlyUsage, 3000);
+
+// Kontrola limitu - výhradně podle Fly.io
 function isOverLimit() {
-  const currentGB = stats.bytesSent / (1024 * 1024 * 1024);
-  return currentGB >= BANDWIDTH_LIMIT_GB;
+  return (stats.flyApiBandwidth / (1024 * 1024 * 1024)) >= BANDWIDTH_LIMIT_GB;
 }
 
 const app = express();
@@ -100,9 +150,14 @@ app.get("/", (req, res) => {
             <span class="value ${esp32Socket ? 'online' : 'offline'}">${esp32Socket ? '🟢 Connected' : '🔴 Disconnected'}</span>
           </div>
           <div class="stat">
-            <span class="label">Bandwidth Used:</span>
-            <span class="value">${getBytesInGB(stats.bytesSent)} / ${BANDWIDTH_LIMIT_GB} GB</span>
+            <span class="label">Měsíční čerpání (Fly.io API):</span>
+            <span class="value">${getBytesInGB(stats.flyApiBandwidth)} / ${BANDWIDTH_LIMIT_GB} GB</span>
           </div>
+          <div class="stat">
+            <span class="label">Poslední synchronizace:</span>
+            <span class="value" style="font-size: 0.8em; color: #94a3b8;">${stats.lastSync || 'Čekám...'}</span>
+          </div>
+
           <div class="stat">
             <span class="label">Live Viewers:</span>
             <span class="value">${mjpegClients.size} / ${MAX_VIEWERS}</span>
@@ -205,12 +260,19 @@ app.post("/motor", (req, res) => {
 });
 
 app.get("/status", (req, res) => {
+  // Výpočet FPS pro frontend
+  const fps = stats.framesReceived > 0 
+    ? Math.round(stats.framesReceived / ((Date.now() - stats.startTime) / 1000) * 10) / 10 
+    : 0;
+
   res.json({
-    esp32_connected: !!esp32Socket,
-    bytes_sent_gb: getBytesInGB(stats.bytesSent),
+    esp32Connected: !!esp32Socket,
+    bandwidth_gb: getBytesInGB(stats.flyApiBandwidth),
     limit_gb: BANDWIDTH_LIMIT_GB,
-    viewers: stats.viewersCount,
-    frames_received: stats.framesReceived
+    mjpegViewers: stats.viewersCount,
+    framesReceived: stats.framesReceived,
+    framesPerSecond: fps,
+    lastSync: stats.lastSync
   });
 });
 
@@ -228,16 +290,11 @@ function broadcastFrame(frameBuffer) {
   const headerBuffer = Buffer.from(frameHeader);
   const footerBuffer = Buffer.from("\r\n");
 
-  const totalBatchSize = headerBuffer.length + frameBuffer.length + footerBuffer.length;
-
   for (const res of mjpegClients) {
     try {
       res.write(headerBuffer);
       res.write(frameBuffer);
       res.write(footerBuffer);
-
-      // Track bandwidth
-      stats.bytesSent += totalBatchSize;
     } catch (err) {
       console.error("[Broadcast] Chyba zápisu:", err.message);
       mjpegClients.delete(res);

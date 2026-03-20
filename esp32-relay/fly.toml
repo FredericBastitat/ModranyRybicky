@@ -17,5 +17,5 @@ primary_region = 'fra'
 [env]
   AUTH_TOKEN = "zmen-me-prosim" # Doporučuji změnit přes fly secrets set
   LIMIT_GB = "50"               # Měsíční limit přenesených dat (Fly Free Tier má 160GB celkem)
-  MAX_VIEWERS = "2"             # Omezení počtu paralelních streamů pro úsporu dat
-  MAX_FPS = "12"                # Snížení FPS výrazně šetří bandwidth
+  MAX_VIEWERS = "5"             # Omezení počtu paralelních streamů pro úsporu dat
+  MAX_FPS = "2"                 # Drastické snížení FPS pro maximální úsporu dat
