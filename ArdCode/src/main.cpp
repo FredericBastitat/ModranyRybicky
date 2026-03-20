@@ -9,7 +9,7 @@
 
 // ── RELAY SERVER (FLY.IO) ─────────────────────────────────────
 const char* ws_host = "rybicky-cloud.fly.dev";
-const int ws_port = 443; // Fly.io vynucuje HTTPS/WSS
+const int ws_port = 80; // Fly.io nyní povoluje ws:// (přesměrováno na 8080 interně)
 
 WebSocketsClient webSocket;
 bool ws_connected = false;
@@ -82,7 +82,7 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn     = PWDN_GPIO_NUM;
   config.pin_reset    = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 10000000; // Sníženo ze 20MHz pro stabilitu SCCB
   config.pixel_format = PIXFORMAT_JPEG;
   
   // Nastavení pro stabilitu a rozlišení
@@ -105,11 +105,15 @@ void setup() {
     Serial.print("."); 
   }
   Serial.println("\nWiFi OK, IP: " + WiFi.localIP().toString());
+  delay(1000); // Počkej sekundu na stabilizaci stacku
 
-  // WebSocket
+  // WebSocket (ws:// na portu 80 pro Fly.io)
+  Serial.printf("[WS] Pripojuji k: %s:%d\n", ws_host, ws_port);
   webSocket.begin(ws_host, ws_port, "/");
   webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000); // Zkus znovu po 5s při výpadku
+  webSocket.setReconnectInterval(5000); 
+  // Nastavení Host hlavičky pro proxy
+  webSocket.setExtraHeaders("Host: rybicky-cloud.fly.dev");
 }
 
 unsigned long lastFrameTime = 0;
