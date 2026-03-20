@@ -29,6 +29,7 @@ const MJPEG_BOUNDARY = "ESP32CAM_STREAM_BOUNDARY";
 let esp32Socket = null;
 let lastFrame = null;
 let lastFrameTime = 0;
+let lastHttpFrameTime = 0; // Pro HTTP upload
 let mjpegClients = new Set();
 
 const stats = {
@@ -101,6 +102,8 @@ function isOverLimit() {
 const app = express();
 app.use(cors());
 app.use(express.json());
+// Pro příjem binárních dat (JPEG snímky z ESP32 přes HTTP POST)
+app.use('/upload-frame', express.raw({ type: 'image/jpeg', limit: '1mb' }));
 
 // Middleware pro logování a kontrolu limitu
 app.use((req, res, next) => {
@@ -259,14 +262,53 @@ app.post("/motor", (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * POST /upload-frame - Příjem snímku z ESP32 přes HTTP POST
+ * ESP32 posílá JPEG data přímo v těle požadavku.
+ * Toto je alternativa k WebSocketu, která lépe funguje na ESP32-CAM bez PSRAM.
+ */
+app.post("/upload-frame", (req, res) => {
+  // Kontrola tokenu
+  if (req.headers['x-api-key'] !== AUTH_TOKEN && req.query.token !== AUTH_TOKEN) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  // Kontrola limitu
+  if (isOverLimit()) {
+    return res.status(429).json({ error: "Bandwidth limit exceeded" });
+  }
+
+  const frameData = req.body;
+  if (!frameData || frameData.length === 0) {
+    return res.status(400).json({ error: "No frame data" });
+  }
+
+  const now = Date.now();
+  if (now - lastFrameTime >= FRAME_MIN_MS) {
+    lastFrame = frameData;
+    lastFrameTime = now;
+    lastHttpFrameTime = now;
+    stats.framesReceived++;
+    if (stats.framesReceived % 100 === 0) {
+      console.log(`[HTTP] Přijato ${stats.framesReceived} snímků (velikost: ${frameData.length} bytes)`);
+    }
+    broadcastFrame(frameData);
+  }
+
+  res.status(200).json({ ok: true });
+});
+
 app.get("/status", (req, res) => {
   // Výpočet FPS pro frontend
   const fps = stats.framesReceived > 0 
     ? Math.round(stats.framesReceived / ((Date.now() - stats.startTime) / 1000) * 10) / 10 
     : 0;
 
+  // ESP32 je "online" pokud posílá snímky přes WS nebo HTTP (timeout 15s)
+  const isEsp32Online = !!esp32Socket || (Date.now() - lastHttpFrameTime < 15000);
+
   res.json({
-    esp32Connected: !!esp32Socket,
+    esp32Connected: isEsp32Online,
     bandwidth_gb: getBytesInGB(stats.flyApiBandwidth),
     limit_gb: BANDWIDTH_LIMIT_GB,
     mjpegViewers: stats.viewersCount,

@@ -1,18 +1,15 @@
 #include "Arduino.h"
 #include "esp_camera.h"
 #include "WiFi.h"
-#include <WebSocketsClient.h>
+#include <HTTPClient.h>
 
 // ── WiFi KONFIGURACE ──────────────────────────────────────────
 #define WIFI_SSID "Rokle"
 #define WIFI_PASS "Centrum-17"
 
 // ── RELAY SERVER (FLY.IO) ─────────────────────────────────────
-const char* ws_host = "rybicky-cloud.fly.dev";
-const int ws_port = 80; // Fly.io nyní povoluje ws:// (přesměrováno na 8080 interně)
-
-WebSocketsClient webSocket;
-bool ws_connected = false;
+const char* RELAY_URL = "https://rybicky-cloud.fly.dev/upload-frame";
+const char* AUTH_TOKEN = "zmen-me-prosim";
 
 // ── AI-Thinker pin mapa ───────────────────────────
 #define PWDN_GPIO_NUM  32
@@ -31,32 +28,6 @@ bool ws_connected = false;
 #define VSYNC_GPIO_NUM 25
 #define HREF_GPIO_NUM  23
 #define PCLK_GPIO_NUM  22
-
-// ── WebSocket Eventy ───────────────────────────
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
-    case WStype_DISCONNECTED:
-      Serial.println("[WS] Odpojeno");
-      ws_connected = false;
-      break;
-    case WStype_CONNECTED:
-      Serial.printf("[WS] Připojeno k: %s\n", payload);
-      ws_connected = true;
-      // Volitelně pošli identifikační zprávu
-      webSocket.sendTXT("{\"type\":\"esp32\",\"role\":\"camera\"}");
-      break;
-    case WStype_TEXT:
-      Serial.printf("[WS] Přijat text: %s\n", payload);
-      // Zde lze zpracovat příkazy pro motory
-      break;
-    case WStype_BIN:
-      // Server nám binární data posílat nebude, ale pro jistotu
-      break;
-    case WStype_ERROR:
-      Serial.println("[WS] Chyba!");
-      break;
-  }
-}
 
 // ── Setup ─────────────────────────────────────────
 void setup() {
@@ -82,11 +53,10 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn     = PWDN_GPIO_NUM;
   config.pin_reset    = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // Sníženo ze 20MHz pro stabilitu SCCB
+  config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
   
-  // Nastavení pro stabilitu a rozlišení
-  config.frame_size   = FRAMESIZE_QVGA;  // 320x240 pro začátek
+  config.frame_size   = FRAMESIZE_QVGA;  // 320x240
   config.jpeg_quality = 12;
   config.fb_count     = 1;
   config.fb_location  = CAMERA_FB_IN_DRAM;
@@ -105,32 +75,50 @@ void setup() {
     Serial.print("."); 
   }
   Serial.println("\nWiFi OK, IP: " + WiFi.localIP().toString());
-  delay(1000); // Počkej sekundu na stabilizaci stacku
-
-  // WebSocket (ws:// na portu 80 pro Fly.io)
-  Serial.printf("[WS] Pripojuji k: %s:%d\n", ws_host, ws_port);
-  webSocket.begin(ws_host, ws_port, "/");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000); 
-  // Nastavení Host hlavičky pro proxy
-  webSocket.setExtraHeaders("Host: rybicky-cloud.fly.dev");
 }
 
 unsigned long lastFrameTime = 0;
-const int frameInterval = 500; // 0.5 sec = 2 FPS (šetrné k datům Fly.io)
+const int frameInterval = 500; // 2 FPS
+int frameCount = 0;
 
 void loop() {
-  webSocket.loop();
-
-  if (ws_connected && (millis() - lastFrameTime > frameInterval)) {
-    camera_fb_t *fb = esp_camera_fb_get();
-    if (fb) {
-      // Odeslání binárních dat (JPEG snímku)
-      webSocket.sendBIN(fb->buf, fb->len);
-      esp_camera_fb_return(fb);
-      lastFrameTime = millis();
-    } else {
-      Serial.println("Focení selhalo!");
-    }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WiFi] Reconnecting...");
+    WiFi.reconnect();
+    delay(3000);
+    return;
   }
+
+  if (millis() - lastFrameTime < frameInterval) {
+    delay(10);
+    return;
+  }
+
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("[CAM] Snimek selhal!");
+    delay(500);
+    return;
+  }
+
+  HTTPClient http;
+  http.begin(RELAY_URL);
+  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("X-Api-Key", AUTH_TOKEN);
+  http.setTimeout(5000);
+
+  int httpCode = http.POST(fb->buf, fb->len);
+  esp_camera_fb_return(fb);
+  
+  frameCount++;
+  if (httpCode == 200) {
+    if (frameCount % 20 == 0) {
+      Serial.printf("[OK] Frame #%d odeslan (%d bytes)\n", frameCount, fb->len);
+    }
+  } else {
+    Serial.printf("[ERR] HTTP %d pri odesilani frame #%d\n", httpCode, frameCount);
+  }
+  
+  http.end();
+  lastFrameTime = millis();
 }
