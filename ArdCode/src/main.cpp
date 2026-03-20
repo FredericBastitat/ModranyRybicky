@@ -33,26 +33,26 @@ bool ws_connected = false;
 #define PCLK_GPIO_NUM  22
 
 // ── WebSocket Eventy ───────────────────────────
-void webSocketEvent(WSType_t type, uint8_t * payload, size_t length) {
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
-    case WSType_DISCONNECTED:
+    case WStype_DISCONNECTED:
       Serial.println("[WS] Odpojeno");
       ws_connected = false;
       break;
-    case WSType_CONNECTED:
+    case WStype_CONNECTED:
       Serial.printf("[WS] Připojeno k: %s\n", payload);
       ws_connected = true;
       // Volitelně pošli identifikační zprávu
       webSocket.sendTXT("{\"type\":\"esp32\",\"role\":\"camera\"}");
       break;
-    case WSType_TEXT:
+    case WStype_TEXT:
       Serial.printf("[WS] Přijat text: %s\n", payload);
       // Zde lze zpracovat příkazy pro motory
       break;
-    case WSType_BIN:
+    case WStype_BIN:
       // Server nám binární data posílat nebude, ale pro jistotu
       break;
-    case WSType_ERROR:
+    case WStype_ERROR:
       Serial.println("[WS] Chyba!");
       break;
   }
@@ -78,8 +78,8 @@ void setup() {
   config.pin_pclk     = PCLK_GPIO_NUM;
   config.pin_vsync    = VSYNC_GPIO_NUM;
   config.pin_href     = HREF_GPIO_NUM;
-  config.pin_sscb_sda = SIOD_GPIO_NUM;
-  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_sccb_sda = SIOD_GPIO_NUM;
+  config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn     = PWDN_GPIO_NUM;
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
